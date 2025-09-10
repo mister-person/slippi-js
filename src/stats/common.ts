@@ -89,6 +89,10 @@ export type ActionCountsType = {
   spotDodgeCount: number;
   ledgegrabCount: number;
   rollCount: number;
+  edgeCancelCount: {
+    success: number;
+    slow: number;
+  };
   lCancelCount: {
     success: number;
     fail: number;
@@ -181,6 +185,7 @@ export enum State {
   GROUND_ATTACK_START = 0x2c,
   GROUND_ATTACK_END = 0x40,
   AERIAL_ATTACK_START = 0x41,
+  AERIAL_LANDING_START = 0x46,
   AERIAL_ATTACK_END = 0x4a,
   ATTACK_FTILT_START = 0x33,
   ATTACK_FTILT_END = 0x37,
@@ -210,6 +215,7 @@ export enum State {
   LANDING_FALL_SPECIAL = 0x2b,
   JUMP_FORWARD = 0x19,
   JUMP_BACKWARD = 0x1a,
+  FALL = 0x1d,
   FALL_FORWARD = 0x1e,
   FALL_BACKWARD = 0x1f,
   GRAB = 0xd4,
@@ -236,6 +242,12 @@ export enum State {
   AERIAL_BAIR = 0x43,
   AERIAL_UAIR = 0x44,
   AERIAL_DAIR = 0x45,
+  AERIAL_NAIR_LANDING = 0x46,
+  AERIAL_FAIR_LANDING = 0x47,
+  AERIAL_BAIR_LANDING = 0x48,
+  AERIAL_UAIR_LANDING = 0x49,
+  AERIAL_DAIR_LANDING = 0x4a,
+  TEETER = 0xf5,
 
   // Weird GnW IDs
   GNW_JAB1 = 0x155,

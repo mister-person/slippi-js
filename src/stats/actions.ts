@@ -5,6 +5,7 @@ import last from "lodash/last";
 import set from "lodash/set";
 import size from "lodash/size";
 
+import * as Melee from "../melee";
 import type { FrameEntryType, GameStartType } from "../types";
 import type { ActionCountsType, PlayerIndexedType } from "./common";
 import { getSinglesPlayerPermutationsFromSettings, State } from "./common";
@@ -17,6 +18,7 @@ type PlayerActionState = {
   playerCounts: ActionCountsType;
   animations: number[];
   actionFrameCounters: number[];
+  lastLCancelStatus: number;
 };
 
 export class ActionsComputer implements StatComputer<ActionCountsType[]> {
@@ -36,6 +38,10 @@ export class ActionsComputer implements StatComputer<ActionCountsType[]> {
         spotDodgeCount: 0,
         ledgegrabCount: 0,
         rollCount: 0,
+        edgeCancelCount: {
+          success: 0,
+          slow: 0,
+        },
         lCancelCount: {
           success: 0,
           fail: 0,
@@ -84,6 +90,7 @@ export class ActionsComputer implements StatComputer<ActionCountsType[]> {
         playerCounts: playerCounts,
         animations: [],
         actionFrameCounters: [],
+        lastLCancelStatus: 0,
       };
       this.state.set(indices, playerState);
     });
@@ -120,8 +127,8 @@ function isGrabbing(animation: State): boolean {
   return animation === State.GRAB || animation === State.DASH_GRAB;
 }
 
-function isAerialAttack(animation: State): boolean {
-  return animation >= State.AERIAL_ATTACK_START && animation <= State.AERIAL_ATTACK_END;
+function isAerialLanding(animation: State): boolean {
+  return animation >= State.AERIAL_LANDING_START && animation <= State.AERIAL_ATTACK_END;
 }
 
 function isForwardTilt(animation: State): boolean {
@@ -130,6 +137,25 @@ function isForwardTilt(animation: State): boolean {
 
 function isForwardSmash(animation: State): boolean {
   return animation >= State.ATTACK_FSMASH_START && animation <= State.ATTACK_FSMASH_END;
+}
+
+function getAerialLandLag(animation: State, internalCharacterId: number): [number, number] | undefined {
+  const data = Melee.framedata.getAerial(internalCharacterId, animation);
+  if (data) {
+    return [data.landingLag, data.lcancelledLandingLag];
+  }
+  return undefined;
+}
+
+function getPrevAnimationLength(state: PlayerActionState): number {
+  let landingFrames = 0;
+  const startIndex = state.animations.length - 2;
+  let i = startIndex;
+  while (state.animations[i] === state.animations[startIndex]) {
+    landingFrames += 1;
+    i--;
+  }
+  return landingFrames;
 }
 
 function handleActionCompute(state: PlayerActionState, indices: PlayerIndexedType, frame: FrameEntryType): void {
@@ -233,13 +259,35 @@ function handleActionCompute(state: PlayerActionState, indices: PlayerIndexedTyp
   incrementCount("wallTechCount.success", currentAnimation === State.WALL_TECH);
   incrementCount("wallTechCount.fail", currentAnimation === State.MISSED_WALL_TECH);
 
-  if (isAerialAttack(currentAnimation)) {
+  if (isAerialLanding(currentAnimation)) {
     incrementCount("lCancelCount.success", playerFrame.lCancelStatus === 1);
     incrementCount("lCancelCount.fail", playerFrame.lCancelStatus === 2);
   }
 
+  if (
+    isAerialLanding(prevAnimation) &&
+    (currentAnimation === State.FALL || currentAnimation === State.TEETER) &&
+    playerFrame.internalCharacterId
+  ) {
+    const landingFrames = getPrevAnimationLength(state);
+    const [landingLag, lCanceledLag] = getAerialLandLag(prevAnimation, playerFrame.internalCharacterId)!;
+
+    // only counts as a successful edge cancel if an L cancel wouldn't have been faster
+    incrementCount("edgeCancelCount.success", landingFrames < lCanceledLag);
+    incrementCount("edgeCancelCount.slow", landingFrames >= lCanceledLag && landingFrames < landingLag);
+
+    // make edge cancels not count as failed L cancels
+    if (landingFrames < lCanceledLag && state.lastLCancelStatus === 2) {
+      state.playerCounts.lCancelCount.fail -= 1;
+    }
+  }
+
   // Handles wavedash detection (and waveland)
   handleActionWavedash(state.playerCounts, state.animations);
+
+  if (playerFrame.lCancelStatus && playerFrame.lCancelStatus > 0) {
+    state.lastLCancelStatus = playerFrame.lCancelStatus;
+  }
 }
 
 function handleActionWavedash(counts: ActionCountsType, animations: State[]): void {

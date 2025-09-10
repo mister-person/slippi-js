@@ -14,6 +14,32 @@ const expectedGrab = {
 };
 
 describe("when calculating stats", () => {
+  it("should distinguish between edge cancels and other interrupted aerials", () => {
+    const game = new SlippiGame("slp/edge-cancel-2.slp");
+    const stats = game.getStats()!;
+    const lCancel = stats.actionCounts[0].lCancelCount.success;
+    const lCancelfail = stats.actionCounts[0].lCancelCount.fail;
+    const edgeCancel = stats.actionCounts[0].edgeCancelCount.success;
+    const slowEdgeCancel = stats.actionCounts[0].edgeCancelCount.slow;
+    expect(lCancel).toBe(5);
+    expect(lCancelfail).toBe(3);
+    expect(edgeCancel).toBe(4);
+    expect(slowEdgeCancel).toBe(0);
+  });
+
+  it("should correctly count edge cancels and not count edge cancels as failed L cancels", () => {
+    const game = new SlippiGame("slp/edge-cancel-1.slp");
+    const stats = game.getStats()!;
+    const lCancel = stats.actionCounts[0].lCancelCount.success;
+    const lCancelfail = stats.actionCounts[0].lCancelCount.fail;
+    const edgeCancel = stats.actionCounts[0].edgeCancelCount.success;
+    const slowEdgeCancel = stats.actionCounts[0].edgeCancelCount.slow;
+    expect(lCancel).toBe(0);
+    expect(lCancelfail).toBe(2);
+    expect(edgeCancel).toBe(4);
+    expect(slowEdgeCancel).toBe(1);
+  });
+
   it("should correctly calculate L cancel counts", () => {
     const game = new SlippiGame("slp/lCancel.slp");
     const stats = game.getStats()!;
